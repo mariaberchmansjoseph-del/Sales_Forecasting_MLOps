@@ -1,7 +1,3 @@
-# scripts/train_model.py
-# PURPOSE: Load data from HuggingFace, train 6 models,
-#          save best model, register to HuggingFace Model Hub.
-
 import pandas as pd
 import numpy as np
 import mlflow
@@ -69,7 +65,9 @@ def get_models():
             }
         },
         "GradientBoosting": {
-            "model": GradientBoostingRegressor(random_state=42),
+            "model": GradientBoostingRegressor(
+                random_state=42
+            ),
             "params": {
                 "n_estimators":  [50, 100],
                 "learning_rate": [0.05, 0.1],
@@ -119,8 +117,11 @@ def evaluate(model, X_test, y_test):
 def train_all(X_train, X_test, y_train, y_test):
     """Train all 6 models and track with MLflow."""
     print("\n── Training 6 Models ─────────────────────────────")
+
+    # Set MLflow tracking URI BEFORE any logging
     mlflow.set_tracking_uri("sqlite:///mlflow.db")
     mlflow.set_experiment("sales-forecasting")
+
     cv         = KFold(n_splits=5, shuffle=True, random_state=42)
     models     = get_models()
     results    = {}
@@ -130,7 +131,10 @@ def train_all(X_train, X_test, y_train, y_test):
 
     for name, config in models.items():
         print(f"\n  Training {name}...")
+
         with mlflow.start_run(run_name=name):
+
+            # Hyperparameter tuning
             gs = GridSearchCV(
                 estimator  = config["model"],
                 param_grid = config["params"],
@@ -139,29 +143,43 @@ def train_all(X_train, X_test, y_train, y_test):
                 n_jobs     = -1
             )
             gs.fit(X_train, y_train)
+
             best_est = gs.best_estimator_
             cv_r2    = gs.best_score_
             metrics  = evaluate(best_est, X_test, y_test)
 
-            # Log to MLflow
+            # Log parameters to MLflow
             mlflow.log_param("model_name", name)
             for k, v in gs.best_params_.items():
                 mlflow.log_param(k, v)
+
+            # Log metrics to MLflow
             mlflow.log_metric("cv_r2",     round(cv_r2, 4))
             mlflow.log_metric("test_r2",   metrics["R2"])
             mlflow.log_metric("test_rmse", metrics["RMSE"])
             mlflow.log_metric("test_mae",  metrics["MAE"])
-            mlflow.sklearn.log_model(best_est, "model")
 
-            print(f"    CV R2:   {cv_r2:.4f}")
-            print(f"    Test R2: {metrics['R2']:.4f}")
-            print(f"    RMSE:    {metrics['RMSE']:.2f}")
-            print(f"    MAE:     {metrics['MAE']:.2f}")
+            # ── FIX: use cloudpickle to avoid skops error ──────
+            # serialization_format="cloudpickle" bypasses the
+            # UntrustedTypesFoundException for all sklearn types
+            mlflow.sklearn.log_model(
+                sk_model             = best_est,
+                artifact_path        = "model",
+                serialization_format = "cloudpickle"
+            )
+
+            print(f"    Best params: {gs.best_params_}")
+            print(f"    CV R2:       {cv_r2:.4f}")
+            print(f"    Test R2:     {metrics['R2']:.4f}")
+            print(f"    Test RMSE:   {metrics['RMSE']:.2f}")
+            print(f"    Test MAE:    {metrics['MAE']:.2f}")
 
             results[name] = {
                 "model":   best_est,
                 "metrics": metrics
             }
+
+            # Track best model
             if metrics["R2"] > best_score:
                 best_score = metrics["R2"]
                 best_model = best_est
@@ -176,8 +194,8 @@ def print_comparison(results):
     print("  " + "-" * 50)
     sorted_r = sorted(
         results.items(),
-        key=lambda x: x[1]["metrics"]["R2"],
-        reverse=True
+        key    = lambda x: x[1]["metrics"]["R2"],
+        reverse = True
     )
     for name, r in sorted_r:
         m = r["metrics"]
@@ -188,12 +206,16 @@ def print_comparison(results):
 
 def save_and_register(model, name, metrics,
                        hf_token, hf_username, model_repo):
-    """Save model locally and register to HuggingFace."""
+    """Save model locally and upload to HuggingFace Model Hub."""
     print(f"\n── Saving Best Model ({name}) ────────────────────")
+
     os.makedirs("models", exist_ok=True)
+
+    # Save with joblib (reliable, no skops issues)
     joblib.dump(model, "models/best_model.pkl")
     print("  ✓ Saved: models/best_model.pkl")
 
+    # Save metadata
     metadata = {
         "model_name": name,
         "metrics":    metrics,
@@ -208,6 +230,7 @@ def save_and_register(model, name, metrics,
         print("  WARNING: HF credentials missing. Skipping upload.")
         return
 
+    # Upload to HuggingFace Model Hub
     print("\n── Registering to HuggingFace Model Hub ─────────")
     api     = HfApi()
     repo_id = f"{hf_username}/{model_repo}"
@@ -221,9 +244,9 @@ tags:
 ---
 # Sales Forecasting Model
 **Algorithm:** {name}
-**R²:** {metrics['R2']}
+**R²:**   {metrics['R2']}
 **RMSE:** {metrics['RMSE']}
-**MAE:** {metrics['MAE']}
+**MAE:**  {metrics['MAE']}
 """
     with open("models/README.md", "w") as f:
         f.write(model_card)
@@ -243,7 +266,11 @@ tags:
                 token           = hf_token
             )
             print(f"  ✓ Uploaded: {remote}")
+        else:
+            print(f"  ⚠ Missing: {local}")
+
     print(f"  View: https://huggingface.co/{repo_id}")
+
 
 if __name__ == "__main__":
     HF_TOKEN        = os.environ.get("HF_TOKEN", "")
@@ -261,12 +288,15 @@ if __name__ == "__main__":
     )
     print_comparison(results)
     save_and_register(
-        best_model, best_name,
+        best_model,
+        best_name,
         results[best_name]["metrics"],
-        HF_TOKEN, HF_USERNAME, HF_MODEL_REPO
+        HF_TOKEN,
+        HF_USERNAME,
+        HF_MODEL_REPO
     )
     print(f"\n{'='*60}")
     print(f"✓ TRAINING COMPLETE")
-    print(f"  Best: {best_name} | R2: {best_score:.4f}")
+    print(f"  Best Model: {best_name}")
+    print(f"  Best R2:    {best_score:.4f}")
     print("=" * 60)
-
