@@ -1,0 +1,12 @@
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+gradio
+huggingface-hub
+datasets
+matplotlib
+seaborn
+mlflow
+spaces
