@@ -1,0 +1,41 @@
+{
+  "Product_Sugar_Content": {
+    "Low Sugar": 0,
+    "Regular": 2,
+    "No Sugar": 1
+  },
+  "Product_Type": {
+    "Frozen Foods": 5,
+    "Dairy": 4,
+    "Canned": 3,
+    "Baking Goods": 0,
+    "Health and Hygiene": 8,
+    "Snack Foods": 13,
+    "Meat": 10,
+    "Household": 9,
+    "Hard Drinks": 7,
+    "Fruits and Vegetables": 6,
+    "Breads": 1,
+    "Soft Drinks": 14,
+    "Breakfast": 2,
+    "Others": 11,
+    "Starchy Foods": 15,
+    "Seafood": 12
+  },
+  "Store_Size": {
+    "Medium": 1,
+    "High": 0,
+    "Small": 2
+  },
+  "Store_Location_City_Type": {
+    "Tier 2": 1,
+    "Tier 1": 0,
+    "Tier 3": 2
+  },
+  "Store_Type": {
+    "Supermarket Type2": 3,
+    "Departmental Store": 0,
+    "Supermarket Type1": 2,
+    "Food Mart": 1
+  }
+}

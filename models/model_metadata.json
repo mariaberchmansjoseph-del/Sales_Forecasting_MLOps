@@ -1,0 +1,10 @@
+{
+  "model_name": "GradientBoosting",
+  "metrics": {
+    "MAE": 123.75,
+    "RMSE": 285.23,
+    "R2": 0.9287
+  },
+  "task": "regression",
+  "target": "Product_Store_Sales_Total"
+}
